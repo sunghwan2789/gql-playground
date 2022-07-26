@@ -28,6 +28,7 @@ public class FetchEventStream<TTopic, TMessage> : ISourceStream<TMessage>
     private readonly IEnumerable<TMessage> _seed;
     private readonly ITopicEventReceiver _receiver;
     private readonly TTopic _topic;
+    private readonly CancellationTokenSource _cts = new();
 
     public FetchEventStream(IEnumerable<TMessage> seed, ITopicEventReceiver receiver, TTopic topic)
     {
@@ -38,6 +39,13 @@ public class FetchEventStream<TTopic, TMessage> : ISourceStream<TMessage>
 
     public ValueTask DisposeAsync()
     {
+        if (!_cts.IsCancellationRequested)
+        {
+            _cts.Cancel();
+        }
+
+        using var _ = _cts;
+
         GC.SuppressFinalize(this);
         return ValueTask.CompletedTask;
     }
@@ -46,12 +54,22 @@ public class FetchEventStream<TTopic, TMessage> : ISourceStream<TMessage>
     {
         foreach (var book in _seed)
         {
+            if (_cts.IsCancellationRequested)
+            {
+                break;
+            }
+
             yield return book;
         }
 
-        var stream = await _receiver.SubscribeAsync<TTopic, TMessage>(_topic);
+        await using var stream = await _receiver.SubscribeAsync<TTopic, TMessage>(_topic, _cts.Token);
         await foreach (var message in stream.ReadEventsAsync())
         {
+            if (_cts.IsCancellationRequested)
+            {
+                break;
+            }
+
             yield return message;
         }
     }
