@@ -8,9 +8,11 @@ public class Subscriptions
     [SubscribeAndResolve]
     public ValueTask<ISourceStream<Book>> BookPublished(
         int seed,
+        [Service] BookService service,
         [Service] ITopicEventReceiver receiver)
     {
-        return ValueTask.FromResult<ISourceStream<Book>>(new FetchEventStream(seed, receiver));
+        var stream = new FetchEventStream<string, Book>(service.GetBooks(seed), receiver, nameof(BookPublished));
+        return ValueTask.FromResult<ISourceStream<Book>>(stream);
     }
 }
 
@@ -19,15 +21,19 @@ public class Book
     public int Id { get; set; }
 }
 
-public class FetchEventStream : ISourceStream<Book>
+public class FetchEventStream<TTopic, TMessage> : ISourceStream<TMessage>
+    where TTopic : notnull
+    where TMessage : class
 {
-    private readonly int _seed;
+    private readonly IEnumerable<TMessage> _seed;
     private readonly ITopicEventReceiver _receiver;
+    private readonly TTopic _topic;
 
-    public FetchEventStream(int seed, ITopicEventReceiver receiver)
+    public FetchEventStream(IEnumerable<TMessage> seed, ITopicEventReceiver receiver, TTopic topic)
     {
         _seed = seed;
         _receiver = receiver;
+        _topic = topic;
     }
 
     public ValueTask DisposeAsync()
@@ -36,14 +42,16 @@ public class FetchEventStream : ISourceStream<Book>
         return ValueTask.CompletedTask;
     }
 
-    public async IAsyncEnumerable<Book> ReadEventsAsync()
+    public async IAsyncEnumerable<TMessage> ReadEventsAsync()
     {
-        foreach (var id in Enumerable.Range(1, _seed)) {
-            yield return new Book { Id = id };
+        foreach (var book in _seed)
+        {
+            yield return book;
         }
 
-        var stream = await _receiver.SubscribeAsync<string, Book>(nameof(Subscriptions.BookPublished));
-        await foreach (var message in stream.ReadEventsAsync()) {
+        var stream = await _receiver.SubscribeAsync<TTopic, TMessage>(_topic);
+        await foreach (var message in stream.ReadEventsAsync())
+        {
             yield return message;
         }
     }
