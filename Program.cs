@@ -8,6 +8,8 @@ builder.Services.AddGraphQLServer()
     .AddInMemorySubscriptions();
 builder.Services.AddSingleton<BookService>();
 
+builder.Services.AddHostedService<BookPublisher>();
+
 var app = builder.Build();
 
 app.UseWebSockets();
