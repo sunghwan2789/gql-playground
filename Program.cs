@@ -3,7 +3,7 @@ using GqlPlayground;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddGraphQLServer()
-    .AddQueryType<Book>()
+    .AddQueryType<BookService>()
     .AddSubscriptionType<Subscriptions>()
     .AddInMemorySubscriptions();
 builder.Services.AddSingleton<BookService>();
