@@ -1,5 +1,9 @@
 namespace GqlPlayground;
 
+[GraphQLDescription("""
+    hi
+    hello
+    """)]
 public class BookService
 {
     [GraphQLDescription("""
