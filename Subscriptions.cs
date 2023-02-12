@@ -6,13 +6,13 @@ namespace GqlPlayground;
 public class Subscriptions
 {
     [SubscribeAndResolve]
-    public ValueTask<ISourceStream<Book>> BookPublished(
+    public ValueTask<IAsyncEnumerable<Book>> BookPublished(
         int seed,
         [Service] BookService service,
         [Service] ITopicEventReceiver receiver)
     {
-        var stream = new FetchEventStream<string, Book>(service.GetBooks(seed), receiver, nameof(BookPublished));
-        return ValueTask.FromResult<ISourceStream<Book>>(stream);
+        var stream = new FetchEventStream<Book>(service.GetBooks(seed), receiver, nameof(BookPublished));
+        return ValueTask.FromResult<IAsyncEnumerable<Book>>(stream);
     }
 }
 
@@ -21,40 +21,25 @@ public class Book
     public int Id { get; set; }
 }
 
-public class FetchEventStream<TTopic, TMessage> : ISourceStream<TMessage>
-    where TTopic : notnull
+public class FetchEventStream<TMessage> : IAsyncEnumerable<TMessage>
     where TMessage : class
 {
     private readonly IEnumerable<TMessage> _seed;
     private readonly ITopicEventReceiver _receiver;
-    private readonly TTopic _topic;
-    private readonly CancellationTokenSource _cts = new();
+    private readonly string _topic;
 
-    public FetchEventStream(IEnumerable<TMessage> seed, ITopicEventReceiver receiver, TTopic topic)
+    public FetchEventStream(IEnumerable<TMessage> seed, ITopicEventReceiver receiver, string topic)
     {
         _seed = seed;
         _receiver = receiver;
         _topic = topic;
     }
 
-    public ValueTask DisposeAsync()
-    {
-        if (!_cts.IsCancellationRequested)
-        {
-            _cts.Cancel();
-        }
-
-        using var _ = _cts;
-
-        GC.SuppressFinalize(this);
-        return ValueTask.CompletedTask;
-    }
-
-    public async IAsyncEnumerable<TMessage> ReadEventsAsync()
+    public async IAsyncEnumerator<TMessage> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
         foreach (var book in _seed)
         {
-            if (_cts.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
@@ -62,10 +47,10 @@ public class FetchEventStream<TTopic, TMessage> : ISourceStream<TMessage>
             yield return book;
         }
 
-        await using var stream = await _receiver.SubscribeAsync<TTopic, TMessage>(_topic, _cts.Token);
+        await using var stream = await _receiver.SubscribeAsync<TMessage>(_topic, cancellationToken);
         await foreach (var message in stream.ReadEventsAsync())
         {
-            if (_cts.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
@@ -73,6 +58,4 @@ public class FetchEventStream<TTopic, TMessage> : ISourceStream<TMessage>
             yield return message;
         }
     }
-
-    IAsyncEnumerable<object> ISourceStream.ReadEventsAsync() => ReadEventsAsync();
 }
