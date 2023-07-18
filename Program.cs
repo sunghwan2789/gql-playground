@@ -5,7 +5,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGraphQLServer()
     .AddQueryType<BookService>()
     .AddSubscriptionType<Subscriptions>()
-    .AddInMemorySubscriptions();
+    .AddInMemorySubscriptions()
+    .AddTypeExtension<SubscriptionExtension>();
 builder.Services.AddSingleton<BookService>();
 
 builder.Services.AddHostedService<BookPublisher>();
