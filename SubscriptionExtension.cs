@@ -9,7 +9,7 @@ public class SubscriptionExtension(
 {
     protected override void Configure(IObjectTypeDescriptor<Subscriptions> descriptor)
     {
-        descriptor.Field(f => f.BookPublished(default, default!, default!))
+        descriptor.Field(f => f.BookPublished(default!))
             .Use(next => async context =>
             {
                 logger.LogInformation("BookPublished {@Variables}", context);

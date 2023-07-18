@@ -5,8 +5,10 @@ namespace GqlPlayground;
 
 public class Subscriptions
 {
-    [SubscribeAndResolve]
-    public ValueTask<IAsyncEnumerable<Book>> BookPublished(
+    [Subscribe(With = nameof(BookPublishedStream))]
+    public Book BookPublished([EventMessage] Book book) => book;
+
+    public ValueTask<IAsyncEnumerable<Book>> BookPublishedStream(
         int seed,
         [Service] BookService service,
         [Service] ITopicEventReceiver receiver)
